@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/models/step.py
+# hypothesis_version: 6.150.3
+
+[512, 'CASCADE', 'Project', 'actionType', 'audioUrl', 'click', 'durationFrames', 'id', 'imageUrl', 'orderIndex', 'posX', 'posY', 'projectId', 'projects.id', 'scriptText', 'scroll', 'steps', 'targetText']

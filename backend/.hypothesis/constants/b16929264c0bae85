@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/models/project.py
+# hypothesis_version: 6.150.3
+
+[255, 512, 'Folder', 'Step', 'all, delete-orphan', 'createdAt', 'deletedAt', 'dynamic', 'folderId', 'folders.id', 'id', 'order_index', 'project', 'projects', 'steps', 'thumbnailUrl', 'title', 'uuid']

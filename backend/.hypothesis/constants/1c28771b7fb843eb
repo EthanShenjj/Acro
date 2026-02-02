@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/init_db.py
+# hypothesis_version: 6.150.3
+
+['  Please ensure:', '--drop', '--reset', 'All Flows', 'Operation cancelled.', 'Trash', 'Usage:', '__main__', 'yes']

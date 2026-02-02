@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/routes/steps.py
+# hypothesis_version: 6.150.3
+
+[200, 400, 404, 500, 'AUDIO_FOLDER', 'Bad Request', 'IMAGES_FOLDER', 'Not Found', 'POST', 'Step not found', 'THUMBNAILS_FOLDER', 'audioUrl', 'durationFrames', 'error', 'id', 'message', 'scriptText', 'steps', 'warning']

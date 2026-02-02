@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acro 录制测试页面</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 300vh; /* 使页面可滚动 */
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 60px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 800px;
+      margin: 0 auto 40px;
+    }
+    
+    h1 {
+      font-size: 48px;
+      color: #333;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    .subtitle {
+      font-size: 18px;
+      color: #666;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    
+    .instructions {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 40px;
+    }
+    
+    .instructions h2 {
+      font-size: 24px;
+      color: #333;
+      margin-bottom: 20px;
+    }
+    
+    .instructions ol {
+      padding-left: 20px;
+    }
+    
+    .instructions li {
+      font-size: 16px;
+      color: #555;
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+    
+    .test-buttons {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    
+    .test-button {
+      padding: 20px 30px;
+      border: none;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      color: white;
+    }
+    
+    .test-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .test-button:active {
+      transform: translateY(0);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    
+    .btn-warning {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    
+    .btn-info {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    
+    .status {
+      background: #e3f2fd;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .status h3 {
+      font-size: 20px;
+      color: #1976d2;
+      margin-bottom: 10px;
+    }
+    
+    .status p {
+      font-size: 16px;
+      color: #555;
+    }
+    
+    .click-counter {
+      font-size: 48px;
+      font-weight: bold;
+      color: #667eea;
+      margin: 20px 0;
+    }
+    
+    .scroll-section {
+      background: white;
+      border-radius: 20px;
+      padding: 60px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 800px;
+      margin: 0 auto 40px;
+      min-height: 400px;
+    }
+    
+    .scroll-indicator {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 15px 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+    }
+    
+    .scroll-indicator h4 {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+    
+    .scroll-indicator .value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #667eea;
+    }
+  </style>
+</head>
+<body>
+  <div class="scroll-indicator">
+    <h4>滚动位置</h4>
+    <div class="value" id="scrollPos">0px</div>
+  </div>
+  
+  <div class="container">
+    <h1>🎥 Acro 录制测试</h1>
+    <p class="subtitle">使用此页面测试 Acro Demo Recorder 扩展</p>
+    
+    <div class="instructions">
+      <h2>📋 测试步骤</h2>
+      <ol>
+        <li>点击浏览器工具栏中的 <strong>Acro 扩展图标</strong></li>
+        <li>在弹出窗口中点击 <strong>"Start Recording"</strong></li>
+        <li>等待 <strong>3 秒倒计时</strong>（屏幕上会显示 3、2、1）</li>
+        <li><strong>点击下面的按钮</strong> - 应该看到红色涟漪动画</li>
+        <li><strong>向下滚动页面</strong> - 应该看到蓝色滚动提示</li>
+        <li>点击扩展图标并选择 <strong>"Stop Recording"</strong></li>
+        <li>应该会自动打开编辑器页面，显示你录制的步骤</li>
+      </ol>
+    </div>
+    
+    <div class="test-buttons">
+      <button class="test-button btn-primary" onclick="handleClick('Primary Button')">
+        主要按钮
+      </button>
+      <button class="test-button btn-success" onclick="handleClick('Success Button')">
+        成功按钮
+      </button>
+      <button class="test-button btn-warning" onclick="handleClick('Warning Button')">
+        警告按钮
+      </button>
+      <button class="test-button btn-info" onclick="handleClick('Info Button')">
+        信息按钮
+      </button>
+    </div>
+    
+    <div class="status">
+      <h3>点击计数器</h3>
+      <div class="click-counter" id="counter">0</div>
+      <p>每次点击按钮时计数器会增加</p>
+    </div>
+  </div>
+  
+  <div class="scroll-section">
+    <h2 style="color: #667eea; margin-bottom: 20px;">📜 第一部分内容</h2>
+    <p style="font-size: 16px; line-height: 1.8; color: #555; margin-bottom: 20px;">
+      这是一个测试滚动功能的区域。向下滚动页面，录制功能应该会捕获你的滚动动作。
+      每次滚动超过 50 像素并停止 500 毫秒后，系统会自动记录一个滚动步骤。
+    </p>
+    <p style="font-size: 16px; line-height: 1.8; color: #555;">
+      滚动时你应该看到蓝色的滚动指示器（↓ Scroll Down 或 ↑ Scroll Up），
+      这表示滚动事件已被成功捕获。
+    </p>
+  </div>
+  
+  <div class="scroll-section">
+    <h2 style="color: #11998e; margin-bottom: 20px;">🎯 第二部分内容</h2>
+    <p style="font-size: 16px; line-height: 1.8; color: #555; margin-bottom: 20px;">
+      继续向下滚动，测试多次滚动事件的记录。每次滚动都会生成一个新的步骤，
+      包含滚动方向、距离和当前页面的截图。
+    </p>
+    <div class="test-buttons">
+      <button class="test-button btn-primary" onclick="handleClick('Section 2 - Button 1')">
+        按钮 1
+      </button>
+      <button class="test-button btn-success" onclick="handleClick('Section 2 - Button 2')">
+        按钮 2
+      </button>
+    </div>
+  </div>
+  
+  <div class="scroll-section">
+    <h2 style="color: #f5576c; margin-bottom: 20px;">🚀 第三部分内容</h2>
+    <p style="font-size: 16px; line-height: 1.8; color: #555; margin-bottom: 20px;">
+      这是页面的最后一部分。你可以尝试向上滚动回到顶部，
+      系统也会记录向上滚动的动作。
+    </p>
+    <div class="test-buttons">
+      <button class="test-button btn-warning" onclick="handleClick('Section 3 - Button 1')">
+        按钮 3
+      </button>
+      <button class="test-button btn-info" onclick="handleClick('Section 3 - Button 2')">
+        按钮 4
+      </button>
+    </div>
+  </div>
+  
+  <div class="scroll-section">
+    <h2 style="color: #4facfe; margin-bottom: 20px;">✅ 测试完成</h2>
+    <p style="font-size: 16px; line-height: 1.8; color: #555; margin-bottom: 20px;">
+      如果你已经完成了点击和滚动测试，现在可以停止录制了。
+      点击扩展图标，然后点击 "Stop Recording" 按钮。
+    </p>
+    <p style="font-size: 16px; line-height: 1.8; color: #555;">
+      系统会自动打开编辑器页面，你应该能看到所有录制的步骤，
+      包括点击事件（带红色标记）和滚动事件（带蓝色标记）。
+    </p>
+  </div>
+  
+  <script>
+    let clickCount = 0;
+    const counterEl = document.getElementById('counter');
+    const scrollPosEl = document.getElementById('scrollPos');
+    
+    function handleClick(buttonName) {
+      clickCount++;
+      counterEl.textContent = clickCount;
+      console.log(`[Test Page] Button clicked: ${buttonName}, Total clicks: ${clickCount}`);
+      
+      // 添加动画效果
+      counterEl.style.transform = 'scale(1.2)';
+      setTimeout(() => {
+        counterEl.style.transform = 'scale(1)';
+      }, 200);
+    }
+    
+    // 更新滚动位置显示
+    window.addEventListener('scroll', () => {
+      scrollPosEl.textContent = Math.round(window.scrollY) + 'px';
+    });
+    
+    // 页面加载时的日志
+    console.log('[Test Page] Acro test page loaded');
+    console.log('[Test Page] Ready for recording');
+    console.log('[Test Page] Page height:', document.body.scrollHeight);
+    console.log('[Test Page] Viewport height:', window.innerHeight);
+    
+    // 监听页面点击
+    document.addEventListener('click', (e) => {
+      console.log('[Test Page] Click detected at:', e.clientX, e.clientY);
+    });
+    
+    // 监听页面滚动
+    document.addEventListener('scroll', (e) => {
+      console.log('[Test Page] Scroll detected, position:', window.scrollY);
+    });
+  </script>
+</body>
+</html>

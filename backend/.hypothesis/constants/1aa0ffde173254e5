@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/services/storage_service.py
+# hypothesis_version: 6.150.3
+
+[180, 320, '%Y%m%d_%H%M%S', ',', '/', '/static/images/', 'PNG', 'mp3', 'png', 'wb']

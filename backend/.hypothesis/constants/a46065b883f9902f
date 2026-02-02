@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/routes/projects.py
+# hypothesis_version: 6.150.3
+
+[200, 201, 255, 400, 404, 500, '/<int:project_id>', 'All Flows', 'Bad Request', 'DELETE', 'GET', 'Not Found', 'POST', 'PUT', 'Project not found', 'Trash', 'durationFrames', 'error', 'folderId', 'message', 'projectId', 'projects', 'stepCount', 'steps', 'title', 'totalDurationFrames']

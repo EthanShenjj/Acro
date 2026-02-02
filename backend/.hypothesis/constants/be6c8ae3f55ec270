@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/config.py
+# hypothesis_version: 6.150.3
+
+[1024, 3306, '*', ',', 'CORS_ORIGINS', 'DB_HOST', 'DB_NAME', 'DB_PASSWORD', 'DB_PORT', 'DB_USER', 'DEBUG', 'SECRET_KEY', 'TTS_LANGUAGE', 'True', 'acro_db', 'audio', 'default', 'development', 'en', 'images', 'localhost', 'production', 'root', 'sqlite:///:memory:', 'static', 'testing', 'thumbnails', 'true']

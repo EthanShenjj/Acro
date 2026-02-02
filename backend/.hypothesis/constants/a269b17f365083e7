@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/routes/recording.py
+# hypothesis_version: 6.150.3
+
+[200, 400, 404, 500, '/chunk', '/start', '/stop', 'AUDIO_FOLDER', 'All Flows', 'Bad Request', 'IMAGES_FOLDER', 'Invalid session ID', 'Not Found', 'POST', 'Project not found', 'THUMBNAILS_FOLDER', 'VIDEO_FPS', 'actionType', 'active', 'error', 'first_image_url', 'imageUrl', 'message', 'orderIndex', 'posX', 'posY', 'projectId', 'project_id', 'recording', 'redirectUrl', 'saved', 'screenshotBase64', 'sessionId', 'session_id', 'status', 'stepId', 'step_count', 'targetText', 'uuid']

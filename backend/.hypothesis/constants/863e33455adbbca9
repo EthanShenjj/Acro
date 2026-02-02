@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/models/folder.py
+# hypothesis_version: 6.150.3
+
+[255, 'Project', 'createdAt', 'dynamic', 'folder', 'folders', 'id', 'name', 'system', 'type', 'user']

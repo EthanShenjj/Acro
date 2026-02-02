@@ -1,0 +1,4 @@
+# file: /Users/ethan/Desktop/project/Arco/backend/routes/folders.py
+# hypothesis_version: 6.150.3
+
+[200, 201, 255, 400, 404, 500, '/<int:folder_id>', 'Bad Request', 'DELETE', 'Folder not found', 'GET', 'Not Found', 'POST', 'PUT', 'error', 'folderId', 'folders', 'message', 'name']
