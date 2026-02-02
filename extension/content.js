@@ -3,6 +3,12 @@
  * Handles DOM manipulation, event capture, and UI injection
  */
 
+// Validate Chrome extension API is available
+if (typeof chrome === 'undefined' || !chrome.runtime) {
+  console.error('[Acro] Chrome extension API not available. Content script cannot initialize.');
+  throw new Error('Chrome extension API not available');
+}
+
 // Content script state
 let isRecording = false;
 let isPaused = false;
@@ -11,11 +17,13 @@ let shadowRoot = null;
 // Initialize content script
 console.log('[Acro] Content script loaded at:', new Date().toISOString());
 console.log('[Acro] Initial state - isRecording:', isRecording, 'isPaused:', isPaused);
+console.log('[Acro] Chrome runtime available:', typeof chrome !== 'undefined' && typeof chrome.runtime !== 'undefined');
+console.log('[Acro DEBUG] This is the local Acro extension content script');
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('[Acro] Content script received message:', message.type);
-  
+
   switch (message.type) {
     case 'SHOW_COUNTDOWN':
       console.log('[Acro] Showing countdown for', message.seconds, 'seconds');
@@ -29,7 +37,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ error: error.message });
         });
       return true;
-      
+
     case 'START_CAPTURE':
       console.log('[Acro] Received START_CAPTURE message');
       try {
@@ -40,42 +48,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.error('[Acro] startCapture() failed:', error);
         sendResponse({ error: error.message });
       }
-      break;
-      
+      return false; // Synchronous response
+
     case 'SHOW_CONTROL_BAR':
       showControlBar();
       freezePage();
       sendResponse({ success: true });
-      break;
-      
+      return false; // Synchronous response
+
     case 'HIDE_CONTROL_BAR':
       hideControlBar();
       sendResponse({ success: true });
-      break;
-      
+      return false; // Synchronous response
+
     case 'FREEZE_PAGE':
       freezePage();
       sendResponse({ success: true });
-      break;
-      
+      return false; // Synchronous response
+
     case 'UNFREEZE_PAGE':
       unfreezePage();
       sendResponse({ success: true });
-      break;
-      
+      return false; // Synchronous response
+
     case 'REMOVE_ALL_UI':
       removeAllUI();
       sendResponse({ success: true });
-      break;
-      
+      return false; // Synchronous response
+
     case 'SHOW_ERROR':
       showErrorNotification(message.message || 'An error occurred')
         .then(() => sendResponse({ success: true }))
         .catch(error => sendResponse({ error: error.message }));
       return true;
-      
+
     default:
       sendResponse({ error: 'Unknown message type' });
+      return false; // Synchronous response
   }
 });
 
@@ -99,7 +108,7 @@ async function showCountdown(seconds) {
       z-index: 2147483647;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     `;
-    
+
     const countdownText = document.createElement('div');
     countdownText.style.cssText = `
       font-size: 120px;
@@ -108,10 +117,10 @@ async function showCountdown(seconds) {
       text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
     `;
     countdownText.textContent = seconds;
-    
+
     overlay.appendChild(countdownText);
     document.body.appendChild(overlay);
-    
+
     let remaining = seconds;
     const interval = setInterval(() => {
       remaining--;
@@ -133,13 +142,13 @@ function startCapture() {
   console.log('[Acro] Starting capture, isRecording:', isRecording, 'isPaused:', isPaused);
   isRecording = true;
   isPaused = false;
-  
+
   // Add mousedown event listener for clicks
   document.addEventListener('mousedown', handleMouseDown, true);
-  
+
   // Add scroll event listener for scrolling
   document.addEventListener('scroll', handleScroll, true);
-  
+
   console.log('[Acro] Capture started, event listeners added (click + scroll)');
 }
 
@@ -148,14 +157,14 @@ function startCapture() {
  */
 async function handleMouseDown(event) {
   console.log('[Acro] Mouse down detected, isRecording:', isRecording, 'isPaused:', isPaused);
-  
+
   if (!isRecording || isPaused) {
     console.log('[Acro] Ignoring click - not recording or paused');
     return;
   }
-  
+
   console.log('[Acro] Processing click event');
-  
+
   try {
     // Get click coordinates and target info
     const posX = event.clientX;
@@ -163,18 +172,52 @@ async function handleMouseDown(event) {
     const targetText = event.target.innerText || event.target.value || '';
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    
+
     // Show click ripple
     showClickRipple(posX, posY);
-    
+
     // Capture screenshot
-    const screenshot = await captureScreenshot();
-    
+    let screenshot;
+    try {
+      screenshot = await captureScreenshot();
+
+      // Validate screenshot data
+      if (!screenshot || typeof screenshot !== 'string' || screenshot.length === 0) {
+        console.error('[Acro] Invalid screenshot data:', typeof screenshot, screenshot?.length);
+        throw new Error('Screenshot capture returned invalid data');
+      }
+
+      // Validate it's a data URL
+      if (!screenshot.startsWith('data:image/')) {
+        console.error('[Acro] Screenshot is not a valid data URL');
+        throw new Error('Screenshot is not a valid data URL');
+      }
+
+      console.log('[Acro] Screenshot validated, size:', screenshot.length);
+    } catch (error) {
+      console.error('[Acro] Screenshot capture failed:', error);
+      // Don't upload this step if screenshot failed
+      return;
+    }
+
     // Get session state
     const response = await chrome.runtime.sendMessage({ type: 'GET_SESSION_STATE' });
+
+    // Validate response
+    if (!response || !response.session) {
+      console.error('[Acro] Invalid session state response:', response);
+      throw new Error('Failed to get session state');
+    }
+
     const sessionId = response.session.sessionId;
     const orderIndex = response.session.stepCount + 1;
-    
+
+    // Validate session ID
+    if (!sessionId) {
+      console.error('[Acro] No session ID available');
+      return;
+    }
+
     // Prepare step data
     const stepData = {
       sessionId,
@@ -187,13 +230,24 @@ async function handleMouseDown(event) {
       viewportHeight,
       screenshotBase64: screenshot
     };
-    
+
+    // Validate all required fields are present
+    const requiredFields = ['sessionId', 'orderIndex', 'actionType', 'posX', 'posY', 'screenshotBase64'];
+    const missingFields = requiredFields.filter(field => !stepData[field] && stepData[field] !== 0);
+
+    if (missingFields.length > 0) {
+      console.error('[Acro] Missing required fields:', missingFields);
+      return;
+    }
+
+    console.log('[Acro] Uploading step with validated data');
+
     // Upload step to backend
     chrome.runtime.sendMessage({
       type: 'UPLOAD_STEP',
       data: stepData
     });
-    
+
   } catch (error) {
     console.error('Failed to capture step:', error);
   }
@@ -207,44 +261,78 @@ let lastScrollY = window.scrollY;
 
 async function handleScroll(event) {
   console.log('[Acro] Scroll detected, isRecording:', isRecording, 'isPaused:', isPaused);
-  
+
   if (!isRecording || isPaused) {
     console.log('[Acro] Ignoring scroll - not recording or paused');
     return;
   }
-  
+
   // Debounce scroll events - only capture after scrolling stops for 500ms
   if (scrollTimeout) {
     clearTimeout(scrollTimeout);
   }
-  
+
   scrollTimeout = setTimeout(async () => {
     const currentScrollY = window.scrollY;
     const scrollDelta = currentScrollY - lastScrollY;
-    
+
     // Only capture if scroll distance is significant (> 50px)
     if (Math.abs(scrollDelta) < 50) {
       return;
     }
-    
+
     console.log('[Acro] Processing scroll event, delta:', scrollDelta);
     lastScrollY = currentScrollY;
-    
+
     try {
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      
+
       // Show scroll indicator
       showScrollIndicator(scrollDelta > 0 ? 'down' : 'up');
-      
+
       // Capture screenshot
-      const screenshot = await captureScreenshot();
-      
+      let screenshot;
+      try {
+        screenshot = await captureScreenshot();
+
+        // Validate screenshot data
+        if (!screenshot || typeof screenshot !== 'string' || screenshot.length === 0) {
+          console.error('[Acro] Invalid screenshot data:', typeof screenshot, screenshot?.length);
+          throw new Error('Screenshot capture returned invalid data');
+        }
+
+        // Validate it's a data URL
+        if (!screenshot.startsWith('data:image/')) {
+          console.error('[Acro] Screenshot is not a valid data URL');
+          throw new Error('Screenshot is not a valid data URL');
+        }
+
+        console.log('[Acro] Screenshot validated, size:', screenshot.length);
+      } catch (error) {
+        console.error('[Acro] Screenshot capture failed:', error);
+        // Don't upload this step if screenshot failed
+        return;
+      }
+
       // Get session state
       const response = await chrome.runtime.sendMessage({ type: 'GET_SESSION_STATE' });
+
+      // Validate response
+      if (!response || !response.session) {
+        console.error('[Acro] Invalid session state response:', response);
+        throw new Error('Failed to get session state');
+      }
+
       const sessionId = response.session.sessionId;
       const orderIndex = response.session.stepCount + 1;
-      
+
+      // Validate session ID
+      if (!sessionId) {
+        console.error('[Acro] No session ID available');
+        return;
+      }
+
       // Prepare step data
       const stepData = {
         sessionId,
@@ -257,13 +345,24 @@ async function handleScroll(event) {
         viewportHeight,
         screenshotBase64: screenshot
       };
-      
+
+      // Validate all required fields are present
+      const requiredFields = ['sessionId', 'orderIndex', 'actionType', 'posX', 'posY', 'screenshotBase64'];
+      const missingFields = requiredFields.filter(field => !stepData[field] && stepData[field] !== 0);
+
+      if (missingFields.length > 0) {
+        console.error('[Acro] Missing required fields:', missingFields);
+        return;
+      }
+
+      console.log('[Acro] Uploading scroll step with validated data');
+
       // Upload step to backend
       chrome.runtime.sendMessage({
         type: 'UPLOAD_STEP',
         data: stepData
       });
-      
+
     } catch (error) {
       console.error('Failed to capture scroll step:', error);
     }
@@ -276,37 +375,50 @@ async function handleScroll(event) {
 async function captureScreenshot() {
   return new Promise((resolve, reject) => {
     console.log('[Acro] Requesting screenshot from background...');
-    chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }, (response) => {
-      if (chrome.runtime.lastError) {
-        const errorMsg = chrome.runtime.lastError.message;
-        console.error('[Acro] Screenshot request error:', errorMsg);
-        
-        // Check if it's a tab visibility issue
-        if (errorMsg.includes('visible') || errorMsg.includes('active')) {
-          reject(new Error('Recording tab must remain visible. Please do not switch tabs during recording.'));
-        } else {
-          reject(new Error(errorMsg));
+
+    // Check if Chrome runtime is available
+    if (typeof chrome === 'undefined' || !chrome.runtime) {
+      console.error('[Acro] Chrome runtime not available');
+      reject(new Error('Chrome extension API not available'));
+      return;
+    }
+
+    try {
+      chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }, (response) => {
+        if (chrome.runtime.lastError) {
+          const errorMsg = chrome.runtime.lastError.message;
+          console.error('[Acro] Screenshot request error:', errorMsg);
+
+          // Check if it's a tab visibility issue
+          if (errorMsg.includes('visible') || errorMsg.includes('active')) {
+            reject(new Error('Recording tab must remain visible. Please do not switch tabs during recording.'));
+          } else {
+            reject(new Error(errorMsg));
+          }
+          return;
         }
-        return;
-      }
-      
-      if (response && response.screenshot) {
-        console.log('[Acro] Screenshot received, size:', response.screenshot.length);
-        resolve(response.screenshot);
-      } else if (response && response.error) {
-        console.error('[Acro] Screenshot error from background:', response.error);
-        
-        // Provide more helpful error messages
-        if (response.error.includes('visible') || response.error.includes('active')) {
-          reject(new Error('Recording tab must remain visible. Please do not switch tabs during recording.'));
+
+        if (response && response.screenshot) {
+          console.log('[Acro] Screenshot received, size:', response.screenshot.length);
+          resolve(response.screenshot);
+        } else if (response && response.error) {
+          console.error('[Acro] Screenshot error from background:', response.error);
+
+          // Provide more helpful error messages
+          if (response.error.includes('visible') || response.error.includes('active')) {
+            reject(new Error('Recording tab must remain visible. Please do not switch tabs during recording.'));
+          } else {
+            reject(new Error(response.error));
+          }
         } else {
-          reject(new Error(response.error));
+          console.error('[Acro] No screenshot in response:', response);
+          reject(new Error('Failed to capture screenshot - no response from background'));
         }
-      } else {
-        console.error('[Acro] No screenshot in response:', response);
-        reject(new Error('Failed to capture screenshot - no response from background'));
-      }
-    });
+      });
+    } catch (error) {
+      console.error('[Acro] Exception in captureScreenshot:', error);
+      reject(error);
+    }
   });
 }
 
@@ -329,7 +441,7 @@ function showClickRipple(x, y) {
     z-index: 2147483646;
     animation: acro-ripple-expand 0.5s ease-out;
   `;
-  
+
   // Add animation keyframes if not already added
   if (!document.getElementById('acro-ripple-styles')) {
     const style = document.createElement('style');
@@ -360,9 +472,9 @@ function showClickRipple(x, y) {
     `;
     document.head.appendChild(style);
   }
-  
+
   document.body.appendChild(ripple);
-  
+
   // Remove ripple after animation
   setTimeout(() => ripple.remove(), 500);
 }
@@ -390,9 +502,9 @@ function showScrollIndicator(direction) {
     animation: acro-scroll-fade 1s ease-out;
   `;
   indicator.textContent = direction === 'down' ? '↓ Scroll Down' : '↑ Scroll Up';
-  
+
   document.body.appendChild(indicator);
-  
+
   // Remove indicator after animation
   setTimeout(() => indicator.remove(), 1000);
 }
@@ -403,7 +515,7 @@ function showScrollIndicator(direction) {
  */
 function showControlBar() {
   if (shadowRoot) return; // Already showing
-  
+
   const container = document.createElement('div');
   container.id = 'acro-control-bar-container';
   container.style.cssText = `
@@ -413,9 +525,9 @@ function showControlBar() {
     transform: translateX(-50%);
     z-index: 2147483647;
   `;
-  
+
   shadowRoot = container.attachShadow({ mode: 'closed' });
-  
+
   shadowRoot.innerHTML = `
     <style>
       .control-bar {
@@ -471,16 +583,16 @@ function showControlBar() {
       <button class="done-btn">✅ Done</button>
     </div>
   `;
-  
+
   document.body.appendChild(container);
-  
+
   // Add event listeners
   const resumeBtn = shadowRoot.querySelector('.resume-btn');
   const doneBtn = shadowRoot.querySelector('.done-btn');
-  
+
   resumeBtn.addEventListener('click', handleResume);
   doneBtn.addEventListener('click', handleDone);
-  
+
   isPaused = true;
 }
 
@@ -515,7 +627,7 @@ function freezePage() {
     background: transparent;
   `;
   document.body.appendChild(overlay);
-  
+
   // Apply grayscale filter to body
   document.body.style.filter = 'grayscale(100%)';
 }
@@ -529,7 +641,7 @@ function unfreezePage() {
   if (overlay) {
     overlay.remove();
   }
-  
+
   // Remove grayscale filter
   document.body.style.filter = '';
 }
@@ -548,13 +660,13 @@ async function handleResume() {
   try {
     // Tell background script to resume (it will coordinate the sequence)
     await chrome.runtime.sendMessage({ type: 'RESUME_RECORDING' });
-    
+
     // The background script will send messages to:
     // 1. Hide control bar
     // 2. Unfreeze page
     // 3. Show countdown
     // 4. Update state to recording
-    
+
   } catch (error) {
     console.error('Failed to resume recording:', error);
   }
@@ -570,17 +682,17 @@ async function handleDone() {
     hideControlBar();
     unfreezePage();
     isRecording = false;
-    
+
     // Remove event listeners
     document.removeEventListener('mousedown', handleMouseDown, true);
     document.removeEventListener('scroll', handleScroll, true);
-    
+
     // Clear scroll timeout if exists
     if (scrollTimeout) {
       clearTimeout(scrollTimeout);
       scrollTimeout = null;
     }
-    
+
     // Stop recording via background script
     // The background script will handle:
     // - Flushing upload queue
@@ -589,7 +701,7 @@ async function handleDone() {
     // - Clearing badge
     // - Removing all UI elements
     const response = await chrome.runtime.sendMessage({ type: 'STOP_RECORDING' });
-    
+
     if (response && response.error) {
       // Error occurred, show notification
       // The background script will have already shown the error
@@ -610,30 +722,30 @@ function removeAllUI() {
   // Remove countdown overlay
   const countdown = document.getElementById('acro-countdown-overlay');
   if (countdown) countdown.remove();
-  
+
   // Remove control bar
   hideControlBar();
-  
+
   // Remove ripple styles
   const rippleStyles = document.getElementById('acro-ripple-styles');
   if (rippleStyles) rippleStyles.remove();
-  
+
   // Remove any ripples
   document.querySelectorAll('.acro-click-ripple').forEach(el => el.remove());
-  
+
   // Remove any scroll indicators
   document.querySelectorAll('.acro-scroll-indicator').forEach(el => el.remove());
-  
+
   // Remove error notifications
   const errorNotification = document.getElementById('acro-error-notification');
   if (errorNotification) errorNotification.remove();
-  
+
   // Clear scroll timeout
   if (scrollTimeout) {
     clearTimeout(scrollTimeout);
     scrollTimeout = null;
   }
-  
+
   // Unfreeze page
   unfreezePage();
 }
@@ -647,7 +759,7 @@ async function showErrorNotification(message) {
     // Remove any existing error notification
     const existing = document.getElementById('acro-error-notification');
     if (existing) existing.remove();
-    
+
     const notification = document.createElement('div');
     notification.id = 'acro-error-notification';
     notification.style.cssText = `
@@ -669,7 +781,7 @@ async function showErrorNotification(message) {
       gap: 12px;
       animation: acro-slide-down 0.3s ease-out;
     `;
-    
+
     notification.innerHTML = `
       <span>⚠️</span>
       <span>${message}</span>
@@ -684,7 +796,7 @@ async function showErrorNotification(message) {
         margin-left: 8px;
       ">Dismiss</button>
     `;
-    
+
     // Add animation keyframes if not already added
     if (!document.getElementById('acro-notification-styles')) {
       const style = document.createElement('style');
@@ -703,16 +815,16 @@ async function showErrorNotification(message) {
       `;
       document.head.appendChild(style);
     }
-    
+
     document.body.appendChild(notification);
-    
+
     // Add dismiss button handler
     const dismissBtn = notification.querySelector('button');
     dismissBtn.addEventListener('click', () => {
       notification.remove();
       resolve();
     });
-    
+
     // Auto-dismiss after 5 seconds
     setTimeout(() => {
       if (notification.parentElement) {

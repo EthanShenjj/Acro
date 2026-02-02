@@ -180,6 +180,16 @@ def get_projects():
             else:
                 # Filter by specific folder
                 query = query.filter(Project.folder_id == folder_id)
+        else:
+            # No folder specified (default "All Projects" view)
+            # Exclude projects in Trash folder
+            trash_folder = db_session.query(Folder).filter_by(
+                name='Trash',
+                type=FolderType.SYSTEM
+            ).first()
+            
+            if trash_folder:
+                query = query.filter(Project.folder_id != trash_folder.id)
         
         # Order by created_at descending (newest first)
         projects = query.order_by(Project.created_at.desc()).all()

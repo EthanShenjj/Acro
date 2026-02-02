@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Chunk Upload</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Test Chunk Upload Data</h1>
+    <p>This page tests what data the extension is sending to the backend.</p>
+    
+    <button onclick="testStartSession()">1. Start Session</button>
+    <button onclick="testChunkUpload()">2. Test Chunk Upload</button>
+    <button onclick="testWithScreenshot()">3. Test with Real Screenshot</button>
+    
+    <div id="output"></div>
+
+    <script>
+        let sessionId = null;
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            output.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+        }
+        
+        async function testStartSession() {
+            log('Starting recording session...');
+            try {
+                const response = await fetch('http://localhost:5001/api/recording/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                log(`Response: ${JSON.stringify(data, null, 2)}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    sessionId = data.sessionId;
+                    log(`Session ID saved: ${sessionId}`, 'success');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testChunkUpload() {
+            if (!sessionId) {
+                log('Please start a session first!', 'error');
+                return;
+            }
+            
+            log('Testing chunk upload with minimal data...');
+            
+            const chunkData = {
+                sessionId: sessionId,
+                orderIndex: 1,
+                actionType: 'click',
+                targetText: 'Test Button',
+                posX: 100,
+                posY: 200,
+                viewportWidth: 1920,
+                viewportHeight: 1080,
+                screenshotBase64: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+            };
+            
+            log(`Sending data: ${JSON.stringify({...chunkData, screenshotBase64: '<base64>'}, null, 2)}`);
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/recording/chunk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(chunkData)
+                });
+                
+                const data = await response.json();
+                log(`Response (${response.status}): ${JSON.stringify(data, null, 2)}`, response.ok ? 'success' : 'error');
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testWithScreenshot() {
+            if (!sessionId) {
+                log('Please start a session first!', 'error');
+                return;
+            }
+            
+            log('Capturing real screenshot...');
+            
+            // Create a canvas and capture the page
+            const canvas = document.createElement('canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw a simple test image
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = '48px Arial';
+            ctx.fillText('Test Screenshot', 50, 100);
+            
+            const screenshot = canvas.toDataURL('image/png');
+            log(`Screenshot captured: ${screenshot.length} characters`);
+            
+            const chunkData = {
+                sessionId: sessionId,
+                orderIndex: 2,
+                actionType: 'click',
+                targetText: 'Test Button',
+                posX: 150,
+                posY: 250,
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+                screenshotBase64: screenshot
+            };
+            
+            log(`Sending data with real screenshot (${screenshot.length} chars)...`);
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/recording/chunk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(chunkData)
+                });
+                
+                const data = await response.json();
+                log(`Response (${response.status}): ${JSON.stringify(data, null, 2)}`, response.ok ? 'success' : 'error');
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

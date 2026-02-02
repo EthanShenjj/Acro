@@ -37,7 +37,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // Requirements: 4.1 - When user clicks Extension icon during active recording, pause
 chrome.action.onClicked.addListener(async (tab) => {
   console.log('Extension icon clicked, current state:', recordingSession.status);
-  
+
   // If recording is active, pause it
   if (recordingSession.status === 'recording') {
     try {
@@ -53,18 +53,18 @@ chrome.action.onClicked.addListener(async (tab) => {
 // Handle messages from content script and popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background received message:', message);
-  
+
   switch (message.type) {
     case 'GET_SESSION_STATE':
       sendResponse({ session: recordingSession });
       break;
-      
+
     case 'START_RECORDING':
       handleStartRecording(message.data)
         .then(response => sendResponse(response))
         .catch(error => sendResponse({ error: error.message }));
       return true; // Keep channel open for async response
-      
+
     case 'START_RECORDING_FROM_DASHBOARD':
       // Handle recording start from dashboard
       // Requirements: 6.5 - Dashboard triggers Extension to start recording
@@ -72,37 +72,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .then(response => sendResponse(response))
         .catch(error => sendResponse({ error: error.message }));
       return true;
-      
+
     case 'PAUSE_RECORDING':
       handlePauseRecording()
         .then(response => sendResponse(response))
         .catch(error => sendResponse({ error: error.message }));
       return true;
-      
+
     case 'RESUME_RECORDING':
       handleResumeRecording()
         .then(response => sendResponse(response))
         .catch(error => sendResponse({ error: error.message }));
       return true;
-      
+
     case 'STOP_RECORDING':
       handleStopRecording()
         .then(response => sendResponse(response))
         .catch(error => sendResponse({ error: error.message }));
       return true;
-      
+
     case 'UPLOAD_STEP':
       handleUploadStep(message.data)
         .then(response => sendResponse(response))
         .catch(error => sendResponse({ error: error.message }));
       return true;
-      
+
     case 'CAPTURE_SCREENSHOT':
       captureScreenshot(sender.tab.id)
         .then(screenshot => sendResponse({ screenshot }))
         .catch(error => sendResponse({ error: error.message }));
       return true;
-      
+
     default:
       console.warn('Unknown message type:', message.type);
       sendResponse({ error: 'Unknown message type' });
@@ -123,7 +123,7 @@ function isValidStateTransition(fromState, toState) {
     'paused': ['recording', 'stopped', 'idle'],  // Allow paused -> idle for error recovery
     'stopped': ['idle']
   };
-  
+
   return validTransitions[fromState]?.includes(toState) || false;
 }
 
@@ -138,10 +138,10 @@ async function updateSessionState(updates) {
       throw new Error(`Invalid state transition: ${recordingSession.status} -> ${updates.status}`);
     }
   }
-  
+
   recordingSession = { ...recordingSession, ...updates };
   await saveSessionState();
-  
+
   if (updates.status) {
     await updateBadge();
   }
@@ -163,33 +163,33 @@ async function handleStartRecording(data) {
         currentTabId: null
       });
     }
-    
+
     // Update state to initializing
     await updateSessionState({ status: 'initializing' });
-    
+
     // Get the current tab ID
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const currentTabId = tab?.id || null;
-    
+
     if (!currentTabId) {
       throw new Error('No active tab found');
     }
-    
+
     // Call backend to create session
     const response = await fetch('http://localhost:5001/api/recording/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
-    
+
     if (!response.ok) {
       throw new Error('Failed to start recording session');
     }
-    
+
     const result = await response.json();
-    
+
     console.log('[Background] Recording session created:', result.sessionId);
-    
+
     // Update session state to recording
     await updateSessionState({
       sessionId: result.sessionId,
@@ -198,7 +198,7 @@ async function handleStartRecording(data) {
       stepCount: 0,
       currentTabId: currentTabId
     });
-    
+
     // Send START_CAPTURE message to content script after a delay
     // This ensures the message is sent after popup closes
     setTimeout(async () => {
@@ -211,8 +211,8 @@ async function handleStartRecording(data) {
       } catch (error) {
         console.error('[Background] Failed to send START_CAPTURE:', error);
       }
-    }, 3500); // Send after countdown completes (3s) + small buffer
-    
+    }, 3100); // Send after countdown completes (3s) + small buffer
+
     return { success: true, sessionId: result.sessionId };
   } catch (error) {
     // Revert to idle on error
@@ -234,42 +234,42 @@ async function handleStartRecordingFromDashboard() {
     if (recordingSession.status !== 'idle') {
       throw new Error('Recording already in progress');
     }
-    
+
     // Create a new tab for recording
     const newTab = await chrome.tabs.create({
       url: 'about:blank',
       active: true
     });
-    
+
     // Wait for tab to be ready
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     // Update state to initializing
-    await updateSessionState({ 
+    await updateSessionState({
       status: 'initializing',
       currentTabId: newTab.id
     });
-    
+
     // Call backend to create session
     const response = await fetch('http://localhost:5001/api/recording/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
-    
+
     if (!response.ok) {
       throw new Error('Failed to start recording session');
     }
-    
+
     const result = await response.json();
-    
+
     // Show countdown in the new tab
     try {
       await chrome.tabs.sendMessage(newTab.id, { type: 'SHOW_COUNTDOWN', seconds: 3 });
     } catch (error) {
       console.warn('Could not show countdown in new tab:', error);
     }
-    
+
     // Update session state to recording
     await updateSessionState({
       sessionId: result.sessionId,
@@ -278,7 +278,7 @@ async function handleStartRecordingFromDashboard() {
       stepCount: 0,
       currentTabId: newTab.id
     });
-    
+
     return { success: true, sessionId: result.sessionId, tabId: newTab.id };
   } catch (error) {
     // Revert to idle on error
@@ -301,18 +301,18 @@ async function handlePauseRecording() {
     // First, update state to paused
     // This ensures recording is paused before any UI is injected
     await updateSessionState({ status: 'paused' });
-    
+
     // Get the active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     if (!tab) {
       throw new Error('No active tab found');
     }
-    
+
     // Now that state is paused, tell content script to freeze page and show control bar
     await chrome.tabs.sendMessage(tab.id, { type: 'FREEZE_PAGE' });
     await chrome.tabs.sendMessage(tab.id, { type: 'SHOW_CONTROL_BAR' });
-    
+
     return { success: true };
   } catch (error) {
     console.error('Failed to pause recording:', error);
@@ -334,21 +334,21 @@ async function handleResumeRecording() {
   try {
     // Get the active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     if (!tab) {
       throw new Error('No active tab found');
     }
-    
+
     // First, remove all UI elements before resuming
     await chrome.tabs.sendMessage(tab.id, { type: 'HIDE_CONTROL_BAR' });
     await chrome.tabs.sendMessage(tab.id, { type: 'UNFREEZE_PAGE' });
-    
+
     // Show countdown before resuming
     await chrome.tabs.sendMessage(tab.id, { type: 'SHOW_COUNTDOWN', seconds: 3 });
-    
+
     // Now that UI is removed and countdown is complete, resume recording
     await updateSessionState({ status: 'recording' });
-    
+
     return { success: true };
   } catch (error) {
     console.error('Failed to resume recording:', error);
@@ -362,57 +362,63 @@ async function handleResumeRecording() {
  * 
  * This function implements the recording completion flow:
  * 1. Flush any remaining uploads in the queue
- * 2. POST to /api/recording/stop with session_id
- * 3. Open new tab with editor URL
+ * 2. POST to /api/recording/stop with session_id (returns immediately)
+ * 3. Open new tab with editor URL (shows loading state)
  * 4. Clear badge and remove all UI elements from recording tab
  * 5. Handle backend processing failures with error notification
  */
 async function handleStopRecording() {
   const currentTabId = recordingSession.currentTabId;
-  
+  const currentSessionId = recordingSession.sessionId;
+
   try {
     console.log('[Background] Starting stop recording process...');
     console.log('[Background] Current session:', recordingSession);
-    
-    // Flush any remaining uploads in the queue
-    console.log('[Background] Flushing upload queue...');
-    await flushUploadQueue();
-    
+    console.log('[Background] Upload queue length:', uploadQueue.length);
+    console.log('[Background] Active upload promise:', !!activeUploadPromise);
+
+    // Start flushing upload queue concurrently (don't await yet)
+    console.log('[Background] Flushing upload queue (concurrently)...');
+    const flushPromise = flushUploadQueue();
+
     // Call backend to finalize session
     // Requirement 5.2: POST to /api/recording/stop with session_id
-    console.log('[Background] Calling /api/recording/stop with sessionId:', recordingSession.sessionId);
+    // Backend now returns immediately with status: "processing"
+    console.log('[Background] Calling /api/recording/stop with sessionId:', currentSessionId);
     const response = await fetch('http://localhost:5001/api/recording/stop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: recordingSession.sessionId })
+      body: JSON.stringify({ sessionId: currentSessionId })
     });
-    
+
     console.log('[Background] Stop recording response status:', response.status);
-    
+
     if (!response.ok) {
       // Requirement 5.5: Handle backend processing failures
       const errorText = await response.text();
       console.error('[Background] Backend error:', errorText);
       throw new Error(`Backend processing failed: ${errorText || response.statusText}`);
     }
-    
+
     const result = await response.json();
     console.log('[Background] Stop recording result:', result);
-    
+
     // Update state to stopped
     await updateSessionState({
       status: 'stopped',
       projectId: result.projectId
     });
-    
+
     // Requirement 5.3: Open new tab with chrome.tabs.create to editor URL
+    // The editor page will show loading state and poll for completion
     console.log('[Background] Opening editor in new tab:', result.redirectUrl);
+    const editorUrl = `${result.redirectUrl}?sessionId=${currentSessionId}`;
     const newTab = await chrome.tabs.create({
-      url: result.redirectUrl,
+      url: editorUrl,
       active: true
     });
     console.log('[Background] New tab created:', newTab.id);
-    
+
     // Requirement 5.4: Clear badge and remove all UI elements from recording tab
     // Clear badge (this happens automatically when state transitions to idle)
     await updateSessionState({
@@ -423,9 +429,9 @@ async function handleStopRecording() {
       stepCount: 0,
       currentTabId: null
     });
-    
+
     console.log('[Background] State reset to idle');
-    
+
     // Remove all UI elements from the recording tab
     if (currentTabId) {
       try {
@@ -436,13 +442,38 @@ async function handleStopRecording() {
         console.warn('Could not remove UI from recording tab:', error);
       }
     }
-    
+
     console.log('[Background] Stop recording completed successfully');
+
+    // Wait for uploads to complete before finishing the background task
+    // This ensures data integrity but doesn't block the tab opening
+    console.log('[Background] Waiting for background uploads to complete...');
+    try {
+      await flushPromise;
+      console.log('[Background] Background uploads completed');
+    } catch (e) {
+      console.warn('[Background] Background uploads finished with warning:', e);
+    } finally {
+      // Signal backend that uploads are done (2-phase stop)
+      // MUST happen even if uploads failed/timed out, otherwise backend hangs in 'uploading'
+      try {
+        console.log('[Background] Calling /api/recording/finish...');
+        await fetch('http://localhost:5001/api/recording/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: currentSessionId })
+        });
+        console.log('[Background] Recording finished successfully');
+      } catch (finishError) {
+        console.error('[Background] Failed to call finish endpoint:', finishError);
+      }
+    }
+
     return { success: true, projectId: result.projectId };
   } catch (error) {
     // Requirement 5.5: Handle backend processing failures with error notification
     console.error('[Background] Failed to stop recording:', error);
-    
+
     // Display error notification to user
     if (currentTabId) {
       try {
@@ -454,10 +485,10 @@ async function handleStopRecording() {
         console.error('Could not show error notification:', notificationError);
       }
     }
-    
+
     // Revert to paused state so user can retry
     await updateSessionState({ status: 'paused' });
-    
+
     throw error;
   }
 }
@@ -471,8 +502,9 @@ async function handleStopRecording() {
 // Upload queue for batching
 let uploadQueue = [];
 let batchTimer = null;
+let activeUploadPromise = null; // Track ongoing upload batch
 const BATCH_SIZE = 5;
-const BATCH_TIMEOUT_MS = 10000; // 10 seconds
+const BATCH_TIMEOUT_MS = 2000; // 2 seconds - reduced for faster uploads
 
 // IndexedDB setup for failed uploads
 const DB_NAME = 'AcroRecorder';
@@ -485,10 +517,10 @@ const STORE_NAME = 'failedUploads';
 async function initIndexedDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    
+
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
-    
+
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -508,19 +540,19 @@ async function storeFailedUpload(stepData) {
     const db = await initIndexedDB();
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    
+
     const failedUpload = {
       ...stepData,
       timestamp: Date.now(),
       retryCount: 0
     };
-    
+
     await new Promise((resolve, reject) => {
       const request = store.add(failedUpload);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
-    
+
     console.log('Stored failed upload in IndexedDB:', failedUpload);
   } catch (error) {
     console.error('Failed to store upload in IndexedDB:', error);
@@ -537,51 +569,51 @@ async function storeFailedUpload(stepData) {
 async function uploadStepWithRetry(stepData, retryCount = 0) {
   const MAX_RETRIES = 3;
   const RETRY_DELAYS = [1000, 2000, 4000]; // 1s, 2s, 4s
-  
+
   try {
     // Log what we're sending (without the large base64 data)
-    const debugData = {...stepData};
+    const debugData = { ...stepData };
     if (debugData.screenshotBase64) {
       debugData.screenshotBase64 = `<base64 data ${debugData.screenshotBase64.length} chars>`;
     }
     console.log('[Background] Uploading step data:', debugData);
-    
+
     const response = await fetch('http://localhost:5001/api/recording/chunk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(stepData)
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Background] Upload failed:', response.status, errorText);
       throw new Error(`Upload failed with status ${response.status}: ${errorText}`);
     }
-    
+
     const result = await response.json();
     console.log('[Background] Upload successful:', result);
     return { success: true, stepId: result.stepId };
-    
+
   } catch (error) {
     console.error(`Upload attempt ${retryCount + 1} failed:`, error);
-    
+
     if (retryCount < MAX_RETRIES) {
       // Wait with exponential backoff
       const delay = RETRY_DELAYS[retryCount];
       console.log(`Retrying upload in ${delay}ms...`);
-      
+
       await new Promise(resolve => setTimeout(resolve, delay));
-      
+
       // Retry
       return uploadStepWithRetry(stepData, retryCount + 1);
     } else {
       // All retries failed, store in IndexedDB
       console.error('All upload retries failed, storing in IndexedDB');
       await storeFailedUpload(stepData);
-      
+
       // Notify user of upload failure
       console.warn('Upload failed after 3 retries. Data stored locally for later retry.');
-      
+
       throw new Error('Upload failed after maximum retries');
     }
   }
@@ -593,7 +625,7 @@ async function uploadStepWithRetry(stepData, retryCount = 0) {
  */
 function queueStepForUpload(stepData) {
   uploadQueue.push(stepData);
-  
+
   // Process batch if we've reached batch size
   if (uploadQueue.length >= BATCH_SIZE) {
     processBatch();
@@ -602,7 +634,7 @@ function queueStepForUpload(stepData) {
     if (batchTimer) {
       clearTimeout(batchTimer);
     }
-    
+
     // Set timer to process batch after timeout
     batchTimer = setTimeout(() => {
       processBatch();
@@ -618,32 +650,46 @@ async function processBatch() {
   if (uploadQueue.length === 0) {
     return;
   }
-  
+
   // Clear batch timer
   if (batchTimer) {
     clearTimeout(batchTimer);
     batchTimer = null;
   }
-  
+
   // Get current batch
   const batch = [...uploadQueue];
   uploadQueue = [];
-  
+
   console.log(`Processing batch of ${batch.length} steps`);
-  
-  // Upload each step in the batch
-  for (const stepData of batch) {
-    try {
-      await uploadStepWithRetry(stepData);
-      
-      // Increment step count on successful upload
-      await updateSessionState({ stepCount: recordingSession.stepCount + 1 });
-      
-    } catch (error) {
-      console.error('Failed to upload step in batch:', error);
-      // Error already handled in uploadStepWithRetry (stored in IndexedDB)
-    }
+
+  // Create a promise for this batch to track completion
+  const batchPromise = (async () => {
+    // Upload steps in parallel
+    const uploadPromises = batch.map(async (stepData) => {
+      try {
+        await uploadStepWithRetry(stepData);
+        await updateSessionState({ stepCount: recordingSession.stepCount + 1 });
+      } catch (error) {
+        console.error('Failed to upload step in batch:', error);
+      }
+    });
+
+    await Promise.all(uploadPromises);
+  })();
+
+  // Update active upload promise
+  if (activeUploadPromise) {
+    // Chain with existing promise
+    activeUploadPromise = activeUploadPromise.then(() => batchPromise);
+  } else {
+    activeUploadPromise = batchPromise;
   }
+
+  // When done, check if we are the last active promise and clear it if so
+  // Note: simpler approach is just to let it chain, 
+  // but clearing helps GC and prevents indefinite growth if we wanted to be stricter
+  await batchPromise;
 }
 
 /**
@@ -654,7 +700,7 @@ async function handleUploadStep(stepData) {
   try {
     // Add to batch queue instead of uploading immediately
     queueStepForUpload(stepData);
-    
+
     return { success: true, queued: true };
   } catch (error) {
     throw error;
@@ -662,13 +708,38 @@ async function handleUploadStep(stepData) {
 }
 
 /**
- * Flush any remaining uploads in the queue
+ * Flush any remaining uploads in the queue and wait for ALL active uploads
  * Should be called when recording stops
  */
 async function flushUploadQueue() {
+  console.log('Flushing upload queue...');
+
+  // 1. Process anything currently in the queue
   if (uploadQueue.length > 0) {
-    console.log('Flushing remaining uploads in queue');
+    console.log(`Processing remaining ${uploadQueue.length} items in queue`);
     await processBatch();
+  }
+
+  // 2. Wait for all active uploads to complete with timeout
+  if (activeUploadPromise) {
+    console.log('Waiting for active uploads to complete (max 10s)...');
+    try {
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Upload sync timeout')), 10000);
+      });
+
+      // Race the active uploads against the timeout
+      await Promise.race([activeUploadPromise, timeoutPromise]);
+      console.log('All active uploads completed');
+    } catch (error) {
+      if (error.message === 'Upload sync timeout') {
+        console.warn('Upload sync timed out after 10s, proceeding with stop anyway');
+      } else {
+        console.error('Error waiting for active uploads:', error);
+      }
+    }
+    activeUploadPromise = null;
   }
 }
 
@@ -683,29 +754,29 @@ async function flushUploadQueue() {
 async function captureScreenshot(tabId) {
   try {
     console.log('[Background] Capturing screenshot for tab:', tabId);
-    
+
     // Check if the requested tab is the currently active tab
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     if (!activeTab) {
       throw new Error('No active tab found');
     }
-    
+
     if (activeTab.id !== tabId) {
       console.warn('[Background] Recording tab is not visible. Active tab:', activeTab.id, 'Recording tab:', tabId);
       throw new Error('Recording tab is not visible. Please keep the recording tab active.');
     }
-    
+
     // Get the window ID of the tab
     const tab = await chrome.tabs.get(tabId);
     const windowId = tab.windowId;
-    
+
     // Capture screenshot at full quality from the specific window
     const screenshot = await chrome.tabs.captureVisibleTab(windowId, {
       format: 'png',
       quality: 100
     });
-    
+
     console.log('[Background] Screenshot captured successfully, size:', screenshot.length);
     return screenshot;
   } catch (error) {
@@ -765,15 +836,15 @@ async function updateBadge() {
     case 'stopped':
       await setBadgeIdle();
       break;
-      
+
     case 'initializing':
       await setBadgeInitializing();
       break;
-      
+
     case 'recording':
       await setBadgeRecording();
       break;
-      
+
     case 'paused':
       await setBadgePaused();
       break;
@@ -796,10 +867,10 @@ async function restoreSessionState() {
     if (result.recordingSession) {
       recordingSession = result.recordingSession;
       console.log('Restored session state:', recordingSession);
-      
+
       // Update badge to reflect restored state
       await updateBadge();
-      
+
       // If session was in recording or paused state, log warning
       if (recordingSession.status === 'recording' || recordingSession.status === 'paused') {
         console.warn('Extension reloaded during active recording session. State preserved.');

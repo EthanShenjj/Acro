@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { AcroVideo } from '@/components/remotion/AcroVideo';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { StepList } from '@/components/StepList';
@@ -13,56 +13,117 @@ import { CompactErrorBoundary } from '@/components/ErrorBoundary';
 
 function EditorPageContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = params.projectId as string;
+  const sessionId = searchParams.get('sessionId');
   
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [currentFrame, setCurrentFrame] = useState(0);
   const apiClient = useRef(new DashboardAPI());
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Poll recording status if sessionId is present
   useEffect(() => {
-    const loadProject = async () => {
+    if (!sessionId) return;
+
+    const pollRecordingStatus = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        
-        // Use projectId directly (can be UUID or numeric ID)
-        // The API now supports both formats
-        const data = await apiClient.current.getProjectDetails(projectId);
-        
-        // Transform relative URLs to absolute URLs for Remotion
         const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
-        const stepsWithAbsoluteUrls = data.steps.map(step => ({
-          ...step,
-          imageUrl: step.imageUrl.startsWith('http') ? step.imageUrl : `${apiBaseUrl}${step.imageUrl}`,
-          audioUrl: step.audioUrl.startsWith('http') ? step.audioUrl : `${apiBaseUrl}${step.audioUrl}`,
-        }));
+        const response = await fetch(`${apiBaseUrl}/api/recording/status/${sessionId}`);
         
-        // Calculate total duration
-        const totalDurationFrames = stepsWithAbsoluteUrls.reduce(
-          (sum, step) => sum + step.durationFrames,
-          0
-        );
+        if (!response.ok) {
+          throw new Error('Failed to check recording status');
+        }
+
+        const data = await response.json();
         
-        // Initialize Remotion composition with Step data
-        setProject({
-          ...data,
-          steps: stepsWithAbsoluteUrls,
-          totalDurationFrames,
-        });
-      } catch (err: any) {
-        // Handle API errors with user-friendly messages
-        setError(err.message || 'Failed to load project');
-      } finally {
-        setLoading(false);
+        if (data.status === 'completed') {
+          // Stop polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          
+          // Load the project
+          setProcessing(false);
+          setProcessingProgress(100);
+          
+          // Remove sessionId from URL
+          window.history.replaceState({}, '', `/editor/${projectId}`);
+          
+          // Trigger project load
+          loadProject();
+        } else {
+          // Update progress (simulate progress based on time)
+          setProcessingProgress(prev => Math.min(prev + 10, 90));
+        }
+      } catch (err) {
+        console.error('Failed to poll recording status:', err);
+        // Continue polling, don't fail
       }
     };
 
-    if (projectId) {
+    // Start polling
+    setProcessing(true);
+    setProcessingProgress(10);
+    pollRecordingStatus(); // Initial check
+    pollingIntervalRef.current = setInterval(pollRecordingStatus, 1000); // Poll every second
+
+    // Cleanup on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, [sessionId, projectId]);
+
+  const loadProject = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Use projectId directly (can be UUID or numeric ID)
+      // The API now supports both formats
+      const data = await apiClient.current.getProjectDetails(projectId);
+      
+      // Transform relative URLs to absolute URLs for Remotion
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+      const stepsWithAbsoluteUrls = data.steps.map(step => ({
+        ...step,
+        imageUrl: step.imageUrl.startsWith('http') ? step.imageUrl : `${apiBaseUrl}${step.imageUrl}`,
+        audioUrl: step.audioUrl.startsWith('http') ? step.audioUrl : `${apiBaseUrl}${step.audioUrl}`,
+      }));
+      
+      // Calculate total duration
+      const totalDurationFrames = stepsWithAbsoluteUrls.reduce(
+        (sum, step) => sum + step.durationFrames,
+        0
+      );
+      
+      // Initialize Remotion composition with Step data
+      setProject({
+        ...data,
+        steps: stepsWithAbsoluteUrls,
+        totalDurationFrames,
+      });
+    } catch (err: any) {
+      // Handle API errors with user-friendly messages
+      setError(err.message || 'Failed to load project');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Only load project if not processing (no sessionId)
+    if (projectId && !sessionId) {
       loadProject();
     }
-  }, [projectId]);
+  }, [projectId, sessionId]);
 
   const handleFrameUpdate = (frame: number) => {
     setCurrentFrame(frame);
@@ -98,43 +159,55 @@ function EditorPageContent() {
 
   const handleRetry = () => {
     setError(null);
-    setLoading(true);
-    // Re-trigger the useEffect by forcing a re-render
-    const loadProject = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const numericId = parseInt(projectId, 10);
-        const data = await apiClient.current.getProjectDetails(numericId);
-        
-        // Transform relative URLs to absolute URLs for Remotion
-        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
-        const stepsWithAbsoluteUrls = data.steps.map(step => ({
-          ...step,
-          imageUrl: step.imageUrl.startsWith('http') ? step.imageUrl : `${apiBaseUrl}${step.imageUrl}`,
-          audioUrl: step.audioUrl.startsWith('http') ? step.audioUrl : `${apiBaseUrl}${step.audioUrl}`,
-        }));
-        
-        const totalDurationFrames = stepsWithAbsoluteUrls.reduce(
-          (sum, step) => sum + step.durationFrames,
-          0
-        );
-        
-        setProject({
-          ...data,
-          steps: stepsWithAbsoluteUrls,
-          totalDurationFrames,
-        });
-      } catch (err: any) {
-        setError(err.message || 'Failed to load project');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     loadProject();
   };
+
+  // Show processing state
+  if (processing) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center max-w-md">
+          <div className="mb-8">
+            <div className="relative w-32 h-32 mx-auto mb-6">
+              <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="54"
+                  fill="none"
+                  stroke="#E5E7EB"
+                  strokeWidth="8"
+                />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="54"
+                  fill="none"
+                  stroke="#3B82F6"
+                  strokeWidth="8"
+                  strokeDasharray={`${2 * Math.PI * 54}`}
+                  strokeDashoffset={`${2 * Math.PI * 54 * (1 - processingProgress / 100)}`}
+                  strokeLinecap="round"
+                  className="transition-all duration-500"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-2xl font-bold text-blue-600">{processingProgress}%</span>
+              </div>
+            </div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Processing Recording</h2>
+            <p className="text-gray-600">
+              Generating thumbnails and preparing your demo video...
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <div className="animate-pulse">●</div>
+            <span>This usually takes a few seconds</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

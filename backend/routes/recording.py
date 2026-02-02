@@ -122,7 +122,8 @@ def upload_chunk():
             logger.error(f"Missing required fields: {missing_fields}. Received fields: {list(data.keys())}")
             return jsonify({
                 'error': 'Bad Request',
-                'message': f'Missing required fields: {", ".join(missing_fields)}'
+                'message': f'Missing required fields: {", ".join(missing_fields)}',
+                'receivedFields': list(data.keys())
             }), 400
         
         session_id = data['sessionId']
@@ -251,6 +252,7 @@ def upload_chunk():
 def stop_recording():
     """
     Stop and finalize a recording session.
+    Returns immediately with project info, processing continues in background.
     
     Expected request body:
         {
@@ -264,15 +266,18 @@ def stop_recording():
         {
             "projectId": 42,
             "uuid": "project-uuid",
-            "redirectUrl": "http://localhost:3000/editor/project-uuid"
+            "redirectUrl": "http://localhost:3000/editor/project-uuid",
+            "status": "processing"
         }
     """
     try:
         # Parse request data
         data = request.get_json()
+        print(f"DEBUG: stop_recording called with data: {data}", flush=True)
         
         # Validate required fields
         if 'sessionId' not in data:
+            print("DEBUG: Missing sessionId", flush=True)
             return jsonify({
                 'error': 'Bad Request',
                 'message': 'Missing required field: sessionId'
@@ -282,6 +287,7 @@ def stop_recording():
         
         # Validate session exists
         if session_id not in active_sessions:
+            print(f"DEBUG: Invalid session ID: {session_id}", flush=True)
             return jsonify({
                 'error': 'Bad Request',
                 'message': 'Invalid session ID'
@@ -289,6 +295,7 @@ def stop_recording():
         
         session = active_sessions[session_id]
         project_id = session['project_id']
+        print(f"DEBUG: Session found. project_id: {project_id}", flush=True)
         
         # If no project was created (no steps recorded), create an empty project
         if project_id is None:
@@ -316,6 +323,7 @@ def stop_recording():
             db_session.commit()
             
             project_id = project.id
+            session['project_id'] = project.id  # Update session so subsequent uploads attach to this project
             logger.info(f"Created empty project {project_id} for session {session_id}")
         else:
             # Get existing project from database
@@ -328,35 +336,20 @@ def stop_recording():
                     'message': 'Project not found'
                 }), 404
         
-        # Generate thumbnail from first step's image
-        if session['first_image_url']:
-            try:
-                storage_service = StorageService(
-                    images_folder=current_app.config['IMAGES_FOLDER'],
-                    audio_folder=current_app.config['AUDIO_FOLDER'],
-                    thumbnails_folder=current_app.config['THUMBNAILS_FOLDER']
-                )
-                thumbnail_url = storage_service.generate_thumbnail(session['first_image_url'])
-                project.thumbnail_url = thumbnail_url
-                db_session.commit()
-                logger.info(f"Generated thumbnail for project {project_id}: {thumbnail_url}")
-            except Exception as e:
-                logger.warning(f"Failed to generate thumbnail for project {project_id}: {str(e)}")
-                # Continue without thumbnail
+        # Mark session as uploading (wait for finish signal)
+        session['status'] = 'uploading'
+        session['project_uuid'] = project.uuid
         
         # Build redirect URL
-        # In production, this would be the actual frontend URL
         redirect_url = f"http://localhost:3000/editor/{project.uuid}"
         
-        # Clean up session
-        del active_sessions[session_id]
-        
-        logger.info(f"Stopped recording session {session_id}, created project {project_id}")
+        logger.info(f"Stopped recording session {session_id}, waiting for uploads (status: uploading)")
         
         return jsonify({
             'projectId': project.id,
             'uuid': project.uuid,
-            'redirectUrl': redirect_url
+            'redirectUrl': redirect_url,
+            'status': 'uploading'
         }), 200
     
     except SQLAlchemyError as e:
@@ -372,4 +365,112 @@ def stop_recording():
         return jsonify({
             'error': 'Internal Server Error',
             'message': 'Failed to stop recording'
+        }), 500
+
+
+@recording_bp.route('/finish', methods=['POST'])
+def finish_recording():
+    """
+    Signal that all uploads are complete.
+    This triggers the final processing state.
+    """
+    try:
+        data = request.get_json()
+        if 'sessionId' not in data:
+            return jsonify({'error': 'Bad Request'}), 400
+            
+        session_id = data['sessionId']
+        if session_id not in active_sessions:
+            return jsonify({'error': 'Invalid session'}), 400
+            
+        session = active_sessions[session_id]
+        
+        # Only transition to processing if currently uploading
+        if session.get('status') == 'uploading':
+            session['status'] = 'processing'
+            logger.info(f"Session {session_id} finished uploading, marked as processing")
+            
+        return jsonify({'status': 'processing'}), 200
+        
+    except Exception as e:
+        logger.error(f"Failed to finish recording: {str(e)}")
+        return jsonify({'error': 'Internal Server Error'}), 500
+
+
+@recording_bp.route('/status/<session_id>', methods=['GET'])
+def get_recording_status(session_id):
+    """
+    Get the processing status of a recording session.
+    """
+    try:
+        # Check if session exists
+        if session_id not in active_sessions:
+            # Session not found, assume it's completed
+            return jsonify({
+                'status': 'completed',
+                'message': 'Session completed or not found'
+            }), 200
+        
+        session = active_sessions[session_id]
+        
+        # If uploading, just report processing (don't finalize yet)
+        if session.get('status') == 'uploading':
+             return jsonify({
+                'status': 'processing', # Frontend sees "processing" spinner
+                'projectId': session.get('project_id'),
+                'uuid': session.get('project_uuid'),
+                'stepCount': session.get('step_count', 0)
+            }), 200
+
+        # If session is marked processing (finish called), finalize it
+        if session.get('status') == 'processing':
+            try:
+                db_session = current_app.db_session
+                project = db_session.query(Project).filter_by(id=session['project_id']).first()
+                
+                if project and not project.thumbnail_url and session.get('first_image_url'):
+                    storage_service = StorageService(
+                        images_folder=current_app.config['IMAGES_FOLDER'],
+                        audio_folder=current_app.config['AUDIO_FOLDER'],
+                        thumbnails_folder=current_app.config['THUMBNAILS_FOLDER']
+                    )
+                    thumbnail_url = storage_service.generate_thumbnail(session['first_image_url'])
+                    project.thumbnail_url = thumbnail_url
+                    db_session.commit()
+                    logger.info(f"Generated thumbnail for project {project.id}: {thumbnail_url}")
+                elif project and not project.thumbnail_url:
+                    logger.warning(f"No first image URL for project {project.id}, skipping thumbnail")
+                
+                # Mark as completed and clean up
+                del active_sessions[session_id]
+                
+                return jsonify({
+                    'status': 'completed',
+                    'projectId': project.id,
+                    'uuid': project.uuid,
+                    'stepCount': session['step_count']
+                }), 200
+                
+            except Exception as e:
+                logger.error(f"Error processing session {session_id}: {str(e)}")
+                # Mark as completed anyway to avoid infinite loop
+                del active_sessions[session_id]
+                return jsonify({
+                    'status': 'completed',
+                    'message': 'Processing completed with warnings'
+                }), 200
+        
+        # Return current status
+        return jsonify({
+            'status': session.get('status', 'processing'),
+            'projectId': session.get('project_id'),
+            'uuid': session.get('project_uuid'),
+            'stepCount': session.get('step_count', 0)
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Failed to get recording status: {str(e)}")
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': 'Failed to get recording status'
         }), 500

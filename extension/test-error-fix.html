@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试 Null 错误修复</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    
+    .test-section {
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    
+    .test-button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 10px 10px 0;
+    }
+    
+    .test-button:hover {
+      background: #0b7dda;
+    }
+    
+    .status {
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    
+    .log-container {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin: 10px 0;
+    }
+    
+    .log-entry {
+      margin: 5px 0;
+      padding: 2px 0;
+    }
+    
+    .log-entry.error {
+      color: #f48771;
+    }
+    
+    .log-entry.success {
+      color: #89d185;
+    }
+    
+    .log-entry.info {
+      color: #6cb6ff;
+    }
+    
+    h1 {
+      color: #333;
+    }
+    
+    h2 {
+      color: #555;
+      margin-top: 30px;
+    }
+    
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔧 Acro 扩展 - Null 错误修复测试</h1>
+  
+  <div class="test-section">
+    <h2>📋 测试说明</h2>
+    <p>这个页面用于测试 "Cannot read properties of null (reading '2')" 错误的修复。</p>
+    <ol>
+      <li>确保已重新加载 Acro 扩展（在 <code>chrome://extensions/</code> 中点击刷新）</li>
+      <li>打开浏览器开发者工具（F12）</li>
+      <li>切换到 Console 标签</li>
+      <li>点击扩展图标开始录制</li>
+      <li>点击下面的测试按钮</li>
+      <li>观察控制台是否有错误</li>
+    </ol>
+  </div>
+  
+  <div class="test-section">
+    <h2>🎯 测试操作</h2>
+    <button class="test-button" onclick="testClick(1)">测试点击 1</button>
+    <button class="test-button" onclick="testClick(2)">测试点击 2</button>
+    <button class="test-button" onclick="testClick(3)">测试点击 3</button>
+    <button class="test-button" onclick="testScroll()">测试滚动</button>
+    <button class="test-button" onclick="checkExtension()">检查扩展状态</button>
+    <button class="test-button" onclick="clearLogs()">清空日志</button>
+  </div>
+  
+  <div class="test-section">
+    <h2>📊 测试结果</h2>
+    <div id="status" class="status info">等待测试...</div>
+    <div id="logs" class="log-container"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>✅ 预期行为</h2>
+    <ul>
+      <li>点击按钮时应该看到红色的点击波纹动画</li>
+      <li>控制台应该显示 <code>[Acro]</code> 开头的日志消息</li>
+      <li><strong>不应该</strong>看到任何 "Cannot read properties of null" 错误</li>
+      <li>如果出现错误，应该有详细的错误信息和上下文</li>
+    </ul>
+  </div>
+  
+  <div class="test-section">
+    <h2>🐛 如果仍有错误</h2>
+    <p>请在控制台中查找以下信息：</p>
+    <ul>
+      <li><code>[Acro] Chrome runtime available: true/false</code></li>
+      <li><code>[Acro] Invalid session state response</code></li>
+      <li><code>[Acro] Screenshot request error</code></li>
+      <li>完整的错误堆栈跟踪</li>
+    </ul>
+    <p>将这些信息提供给开发者以便进一步诊断。</p>
+  </div>
+  
+  <!-- 添加一些内容以便测试滚动 -->
+  <div style="height: 1000px; background: linear-gradient(to bottom, #f0f0f0, #e0e0e0); padding: 20px; margin-top: 20px; border-radius: 8px;">
+    <h3>滚动测试区域</h3>
+    <p>向下滚动以测试滚动捕获功能...</p>
+    <div style="margin-top: 800px;">
+      <p>✨ 你已经滚动到底部了！</p>
+    </div>
+  </div>
+  
+  <script>
+    let clickCount = 0;
+    let testLogs = [];
+    
+    function addLog(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = `[${timestamp}] ${message}`;
+      testLogs.push({ message: logEntry, type });
+      
+      const logsContainer = document.getElementById('logs');
+      const logElement = document.createElement('div');
+      logElement.className = `log-entry ${type}`;
+      logElement.textContent = logEntry;
+      logsContainer.appendChild(logElement);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+      
+      console.log(`[Test Page] ${message}`);
+    }
+    
+    function updateStatus(message, type = 'info') {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+    
+    function testClick(num) {
+      clickCount++;
+      addLog(`测试点击 ${num} - 总点击次数: ${clickCount}`, 'info');
+      updateStatus(`已点击 ${clickCount} 次`, 'success');
+    }
+    
+    function testScroll() {
+      addLog('开始滚动测试...', 'info');
+      window.scrollTo({
+        top: document.body.scrollHeight / 2,
+        behavior: 'smooth'
+      });
+      setTimeout(() => {
+        addLog('滚动完成', 'success');
+      }, 1000);
+    }
+    
+    function checkExtension() {
+      addLog('检查扩展状态...', 'info');
+      
+      // Check if Chrome extension API is available
+      if (typeof chrome === 'undefined' || !chrome.runtime) {
+        addLog('❌ Chrome 扩展 API 不可用', 'error');
+        updateStatus('Chrome 扩展 API 不可用', 'error');
+        return;
+      }
+      
+      addLog('✅ Chrome 扩展 API 可用', 'success');
+      
+      // Try to get session state
+      try {
+        chrome.runtime.sendMessage({ type: 'GET_SESSION_STATE' }, (response) => {
+          if (chrome.runtime.lastError) {
+            addLog(`❌ 通信错误: ${chrome.runtime.lastError.message}`, 'error');
+            updateStatus('扩展通信失败', 'error');
+            return;
+          }
+          
+          if (response && response.session) {
+            addLog(`✅ 会话状态: ${response.session.status}`, 'success');
+            addLog(`   Session ID: ${response.session.sessionId || 'null'}`, 'info');
+            addLog(`   Step Count: ${response.session.stepCount}`, 'info');
+            updateStatus(`扩展正常 - 状态: ${response.session.status}`, 'success');
+          } else {
+            addLog('❌ 无效的响应格式', 'error');
+            updateStatus('扩展响应异常', 'error');
+          }
+        });
+      } catch (error) {
+        addLog(`❌ 异常: ${error.message}`, 'error');
+        updateStatus('检查失败', 'error');
+      }
+    }
+    
+    function clearLogs() {
+      testLogs = [];
+      document.getElementById('logs').innerHTML = '';
+      addLog('日志已清空', 'info');
+    }
+    
+    // Monitor console errors
+    window.addEventListener('error', (event) => {
+      addLog(`❌ 页面错误: ${event.message}`, 'error');
+      updateStatus('检测到错误 - 查看日志', 'error');
+    });
+    
+    // Monitor unhandled promise rejections
+    window.addEventListener('unhandledrejection', (event) => {
+      addLog(`❌ Promise 错误: ${event.reason}`, 'error');
+      updateStatus('检测到 Promise 错误 - 查看日志', 'error');
+    });
+    
+    // Initial log
+    addLog('测试页面已加载', 'success');
+    addLog('等待开始录制...', 'info');
+    
+    // Check extension on load
+    setTimeout(checkExtension, 1000);
+  </script>
+</body>
+</html>
