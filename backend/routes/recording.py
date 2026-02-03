@@ -337,8 +337,10 @@ def stop_recording():
                 }), 404
         
         # Mark session as uploading (wait for finish signal)
+        from datetime import datetime
         session['status'] = 'uploading'
         session['project_uuid'] = project.uuid
+        session['stop_time'] = datetime.now()
         
         # Build redirect URL
         redirect_url = f"http://localhost:3000/editor/{project.uuid}"
@@ -406,23 +408,48 @@ def get_recording_status(session_id):
         # Check if session exists
         if session_id not in active_sessions:
             # Session not found, assume it's completed
-            return jsonify({
+            logger.info(f"Status check for unknown/completed session {session_id}")
+            response = jsonify({
                 'status': 'completed',
                 'message': 'Session completed or not found'
-            }), 200
+            })
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            return response, 200
         
         session = active_sessions[session_id]
         
-        # If uploading, just report processing (don't finalize yet)
+        # Check for timeout in uploading state
+        # If stuck in uploading for > 15 seconds, force transition to processing
+        # Also force processing if stop_time is missing (legacy session from before restart)
         if session.get('status') == 'uploading':
-             return jsonify({
-                'status': 'processing', # Frontend sees "processing" spinner
-                'projectId': session.get('project_id'),
-                'uuid': session.get('project_uuid'),
-                'stepCount': session.get('step_count', 0)
-            }), 200
+            from datetime import datetime, timedelta
+            stop_time = session.get('stop_time')
+            
+            should_force_processing = False
+            
+            if not stop_time:
+                # Legacy session or error - force completion
+                logger.warning(f"Session {session_id} stuck in uploading with no stop_time. Forcing processing.")
+                should_force_processing = True
+            elif (datetime.now() - stop_time) > timedelta(seconds=15):
+                # Timeout
+                logger.warning(f"Session {session_id} stuck in uploading for > 15s. Forcing processing.")
+                should_force_processing = True
+            
+            if should_force_processing:
+                session['status'] = 'processing'
+                # Fall through to processing handler below
+            else:
+                 response = jsonify({
+                    'status': 'processing', # Frontend sees "processing" spinner
+                    'projectId': session.get('project_id'),
+                    'uuid': session.get('project_uuid'),
+                    'stepCount': session.get('step_count', 0)
+                })
+                 response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                 return response, 200
 
-        # If session is marked processing (finish called), finalize it
+        # If session is marked processing (finish called or timeout forced), finalize it
         if session.get('status') == 'processing':
             try:
                 db_session = current_app.db_session
@@ -444,33 +471,43 @@ def get_recording_status(session_id):
                 # Mark as completed and clean up
                 del active_sessions[session_id]
                 
-                return jsonify({
+                response = jsonify({
                     'status': 'completed',
                     'projectId': project.id,
                     'uuid': project.uuid,
                     'stepCount': session['step_count']
-                }), 200
+                })
+                response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                return response, 200
                 
             except Exception as e:
                 logger.error(f"Error processing session {session_id}: {str(e)}")
                 # Mark as completed anyway to avoid infinite loop
-                del active_sessions[session_id]
-                return jsonify({
+                if session_id in active_sessions:
+                    del active_sessions[session_id]
+                
+                response = jsonify({
                     'status': 'completed',
                     'message': 'Processing completed with warnings'
-                }), 200
+                })
+                response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                return response, 200
         
         # Return current status
-        return jsonify({
+        response = jsonify({
             'status': session.get('status', 'processing'),
             'projectId': session.get('project_id'),
             'uuid': session.get('project_uuid'),
             'stepCount': session.get('step_count', 0)
-        }), 200
+        })
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response, 200
     
     except Exception as e:
         logger.error(f"Failed to get recording status: {str(e)}")
-        return jsonify({
+        response = jsonify({
             'error': 'Internal Server Error',
             'message': 'Failed to get recording status'
-        }), 500
+        })
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response, 500

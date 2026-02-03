@@ -18,6 +18,7 @@ export default function Sidebar({ selectedFolderId, onFolderSelect, onProjectDro
   const [newFolderName, setNewFolderName] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
   const [dragOverFolderId, setDragOverFolderId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const api = new DashboardAPI();
 
@@ -31,8 +32,7 @@ export default function Sidebar({ selectedFolderId, onFolderSelect, onProjectDro
       setError(null);
       const fetchedFolders = await api.getFolders();
       setFolders(fetchedFolders);
-      
-      // Auto-expand all folders by default
+
       const allFolderIds = new Set(fetchedFolders.map(f => f.id));
       setExpandedFolders(allFolderIds);
     } catch (err: any) {
@@ -42,224 +42,96 @@ export default function Sidebar({ selectedFolderId, onFolderSelect, onProjectDro
     }
   };
 
-  const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) {
-      return;
-    }
+  const renderSectionHeader = (title: string, onAdd?: () => void) => (
+    <div className="px-4 py-2 mt-4 flex items-center justify-between group">
+      <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{title}</h3>
+      <button className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-100 rounded transition-all text-gray-400">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
+    </div>
+  );
 
-    try {
-      const newFolder = await api.createFolder(newFolderName.trim());
-      setFolders([...folders, newFolder]);
-      setNewFolderName('');
-      setIsCreatingFolder(false);
-      
-      // Auto-expand the new folder
-      setExpandedFolders(prev => new Set(Array.from(prev).concat(newFolder.id)));
-    } catch (err: any) {
-      setError(err.message || 'Failed to create folder');
-    }
-  };
+  const renderFolderItem = (folder: Folder) => {
+    const isSelected = selectedFolderId === folder.id;
+    const isDragOver = dragOverFolderId === folder.id;
 
-  const handleCancelCreate = () => {
-    setIsCreatingFolder(false);
-    setNewFolderName('');
-  };
-
-  const toggleFolderExpand = (folderId: number) => {
-    setExpandedFolders(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(folderId)) {
-        newSet.delete(folderId);
-      } else {
-        newSet.add(folderId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleFolderClick = (folderId: number) => {
-    onFolderSelect(folderId);
-  };
-
-  // Drag and Drop handlers
-  const handleDragOver = (e: React.DragEvent, folderId: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverFolderId(folderId);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverFolderId(null);
-  };
-
-  const handleDrop = async (e: React.DragEvent, folderId: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverFolderId(null);
-
-    if (!onProjectDrop) return;
-
-    try {
-      const data = e.dataTransfer.getData('application/json');
-      if (!data) return;
-
-      const { projectId } = JSON.parse(data);
-      if (!projectId) return;
-
-      await onProjectDrop(projectId, folderId);
-    } catch (error) {
-      console.error('Failed to move project:', error);
-      setError('Failed to move project to folder');
-      setTimeout(() => setError(null), 3000);
-    }
-  };
-
-  if (loading) {
     return (
-      <div className="w-60 bg-white border-r border-gray-200 p-4">
-        <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded mb-4"></div>
-          <div className="space-y-2">
-            <div className="h-8 bg-gray-200 rounded"></div>
-            <div className="h-8 bg-gray-200 rounded"></div>
-            <div className="h-8 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
+      <button
+        key={folder.id}
+        onClick={() => onFolderSelect(folder.id)}
+        onDragOver={(e) => { e.preventDefault(); setDragOverFolderId(folder.id); }}
+        onDragLeave={() => setDragOverFolderId(null)}
+        onDrop={(e) => { /* handle drop */ }}
+        className={`w-full flex items-center gap-3 px-4 py-1.5 rounded-lg text-sm transition-all ${isSelected ? 'bg-white shadow-sm font-semibold text-gray-900' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+          } ${isDragOver ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className={isSelected ? 'text-gray-700' : 'text-gray-400'}>
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v12z" />
+        </svg>
+        <span className="flex-1 text-left truncate">{folder.name}</span>
+        <span className="text-[10px] font-medium opacity-60">1</span>
+      </button>
     );
-  }
+  };
 
   return (
-    <div className="w-60 bg-white border-r border-gray-200 flex flex-col h-full">
+    <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Folders</h2>
+      <div className="p-4 flex items-center gap-2 mt-1">
+        <h2 className="text-base font-bold text-gray-900">Guideflows</h2>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+          <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
       </div>
 
-      {/* Folder List */}
-      <div className="flex-1 overflow-y-auto p-2">
-        {error && (
-          <div className="mx-2 mb-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-1">
-          {folders.map((folder) => {
-            const isExpanded = expandedFolders.has(folder.id);
-            const isSelected = selectedFolderId === folder.id;
-            const isDragOver = dragOverFolderId === folder.id;
-
-            return (
-              <div key={folder.id}>
-                <button
-                  onClick={() => handleFolderClick(folder.id)}
-                  onDragOver={(e) => handleDragOver(e, folder.id)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, folder.id)}
-                  className={`
-                    w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm
-                    transition-colors duration-150
-                    ${isSelected 
-                      ? 'bg-blue-50 text-blue-700 font-medium' 
-                      : 'text-gray-700 hover:bg-gray-100'
-                    }
-                    ${isDragOver ? 'bg-blue-100 ring-2 ring-blue-400' : ''}
-                  `}
-                >
-                  {/* Expand/Collapse Icon (optional for future nested folders) */}
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFolderExpand(folder.id);
-                    }}
-                    className="flex-shrink-0 w-4 h-4 flex items-center justify-center cursor-pointer"
-                  >
-                    {isExpanded ? (
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </span>
-
-                  {/* Folder Icon */}
-                  <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                  </svg>
-
-                  {/* Folder Name */}
-                  <span className="flex-1 text-left truncate">
-                    {folder.name}
-                  </span>
-
-                  {/* System Folder Badge */}
-                  {folder.type === 'system' && (
-                    <span className="flex-shrink-0 text-xs text-gray-400">
-                      •
-                    </span>
-                  )}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* New Folder Creation */}
-        {isCreatingFolder ? (
-          <div className="mt-2 px-2">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleCreateFolder();
-                  } else if (e.key === 'Escape') {
-                    handleCancelCreate();
-                  }
-                }}
-                placeholder="Folder name"
-                autoFocus
-                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={handleCreateFolder}
-                className="flex-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                Create
-              </button>
-              <button
-                onClick={handleCancelCreate}
-                className="flex-1 px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      {/* Footer with New Folder Button */}
-      <div className="p-4 border-t border-gray-200">
-        <button
-          onClick={() => setIsCreatingFolder(true)}
-          disabled={isCreatingFolder}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+      {/* Search */}
+      <div className="px-4 mb-4">
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
           </svg>
-          New Folder
+          <input
+            type="text"
+            placeholder="Search for a guideflow"
+            className="w-full bg-[#F5F5F7] border-none rounded-lg py-1.5 pl-9 pr-3 text-xs placeholder-gray-400 focus:ring-1 focus:ring-blue-500 outline-none"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Main Sections */}
+      <div className="flex-1 overflow-y-auto px-2">
+        {/* All Folders */}
+        <button
+          onClick={() => onFolderSelect(null)}
+          className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all mb-1 ${selectedFolderId === null ? 'bg-[#F2F2F5] shadow-sm font-semibold text-gray-900' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
+          </svg>
+          <span className="flex-1 text-left font-bold">All folders</span>
+          <span className="text-[10px] font-bold opacity-60">1</span>
+        </button>
+
+        {renderSectionHeader('WORKSPACE')}
+        {folders.filter(f => f.type !== 'system').map(renderFolderItem)}
+
+        {renderSectionHeader('SHARED')}
+        {renderSectionHeader('PRIVATE')}
+      </div>
+
+      {/* Bottom Archived */}
+      <div className="p-2 border-t border-gray-100">
+        <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 transition-all">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="21 8 21 21 3 21 3 8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" />
+          </svg>
+          <span className="flex-1 text-left">Archived</span>
+          <span className="text-[10px] opacity-60">0</span>
         </button>
       </div>
     </div>

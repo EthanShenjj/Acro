@@ -15,8 +15,8 @@ interface ProjectCardProps {
   onFolderChange?: (projectId: number, newFolderId: number) => Promise<void>;
 }
 
-export default function ProjectCard({ 
-  project, 
+export default function ProjectCard({
+  project,
   isInTrash = false,
   onRename,
   onDelete,
@@ -36,7 +36,7 @@ export default function ProjectCard({
     if (isRenaming || isLoading || isInTrash) {
       return;
     }
-    
+
     // Navigate to editor page
     router.push(`/editor/${project.uuid}`);
   };
@@ -100,7 +100,7 @@ export default function ProjectCard({
 
     setIsLoading(true);
     setDeleteConfirm(null); // Close popover
-    
+
     try {
       await onDelete(project.id);
     } catch (error) {
@@ -155,66 +155,58 @@ export default function ProjectCard({
 
   const contextMenuItems: ContextMenuItem[] = isInTrash
     ? [
-        {
-          label: 'Restore',
-          onClick: handleRestore,
-          icon: (
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          ),
-        },
-      ]
+      {
+        label: 'Restore',
+        onClick: handleRestore,
+        icon: (
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        ),
+      },
+    ]
     : [
-        {
-          label: 'Rename',
-          onClick: handleRenameStart,
-          icon: (
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          ),
-        },
-        {
-          label: 'Delete',
-          onClick: (e) => {
-            // Get context menu position for popover
-            setContextMenu(null);
-            setDeleteConfirm({ x: contextMenu?.x || 0, y: contextMenu?.y || 0 });
-          },
-          icon: (
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          ),
-          danger: true,
-        },
-      ];
+      {
+        label: 'Rename',
+        onClick: handleRenameStart,
+        icon: (
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Delete',
+        onClick: () => setDeleteConfirm({ x: contextMenu?.x || 0, y: contextMenu?.y || 0 }),
+        icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+        danger: true,
+      },
+    ];
 
   return (
     <>
-      <div 
+      <div
         draggable={!isRenaming && !isInTrash}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={handleCardClick}
-        className={`bg-white rounded-lg shadow hover:shadow-lg transition-shadow duration-200 overflow-hidden cursor-pointer group relative ${
-          isLoading ? 'opacity-50 pointer-events-none' : ''
-        } ${isDragging ? 'opacity-50' : ''}`}
+        className={`bg-white rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer group relative ${isLoading ? 'opacity-50 pointer-events-none' : ''
+          } ${isDragging ? 'opacity-50' : ''}`}
         onContextMenu={handleContextMenu}
       >
         {/* Thumbnail */}
-        <div className="relative w-full h-[180px] bg-gray-200">
+        <div className="relative w-full aspect-video bg-[#F5F5F7] overflow-hidden">
           {project.thumbnailUrl ? (
             <img
               src={project.thumbnailUrl}
               alt={displayTitle}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
+            <div className="w-full h-full flex items-center justify-center text-gray-200">
               <svg
-                className="w-16 h-16"
+                width="40"
+                height="40"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -222,52 +214,22 @@ export default function ProjectCard({
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={1.5}
                   d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                 />
               </svg>
             </div>
           )}
 
-          {/* Action buttons overlay - visible on hover */}
-          {!isInTrash && (
-            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              {/* Edit button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRenameStart();
-                }}
-                className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors"
-                title="Rename"
-              >
-                <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-
-              {/* Delete button */}
-              <button
-                onClick={handleDeleteClick}
-                className="p-2 bg-white rounded-full shadow-lg hover:bg-red-50 transition-colors"
-                title="Delete"
-              >
-                <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          )}
-
           {/* Restore button for trash items */}
           {isInTrash && (
-            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleRestore();
                 }}
-                className="p-2 bg-white rounded-full shadow-lg hover:bg-blue-50 transition-colors"
+                className="p-1.5 bg-white/90 backdrop-blur-sm rounded-lg hover:bg-white shadow-sm transition-colors"
                 title="Restore"
               >
                 <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -279,26 +241,45 @@ export default function ProjectCard({
         </div>
 
         {/* Content */}
-        <div className="p-4">
-          {isRenaming ? (
-            <input
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onBlur={handleRenameSubmit}
-              onKeyDown={handleRenameKeyDown}
-              className="w-full text-lg font-semibold text-gray-900 border border-blue-500 rounded px-2 py-1 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-              disabled={isLoading}
-            />
-          ) : (
-            <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">
-              {displayTitle}
-            </h3>
-          )}
-          <p className="text-sm text-gray-500">
-            {formatDate(project.createdAt)}
-          </p>
+        <div className="p-4 flex flex-col gap-1 relative">
+          <div className="flex items-center justify-between gap-2">
+            {isRenaming ? (
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onBlur={handleRenameSubmit}
+                onKeyDown={handleRenameKeyDown}
+                className="flex-1 text-sm font-bold text-gray-900 border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                autoFocus
+                disabled={isLoading}
+              />
+            ) : (
+              <h3 className="text-sm font-bold text-gray-900 truncate">
+                {displayTitle}
+              </h3>
+            )}
+
+            {!isInTrash && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleContextMenu(e);
+                }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all flex-shrink-0 active:scale-90"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400">
+            <span className="text-blue-500">By ethan</span>
+            <span>•</span>
+            <span>{formatDate(project.createdAt)}</span>
+          </div>
         </div>
       </div>
 
